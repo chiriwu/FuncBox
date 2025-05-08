@@ -1,130 +1,539 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  ScrollView,
-  StatusBar,
+  SafeAreaView,
   StyleSheet,
-  Text,
-  useColorScheme,
   View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  ActivityIndicator,
+  StatusBar,
+  Modal,
+  ScrollView,
+  Dimensions
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const { width } = Dimensions.get('window');
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+// API Key
+const API_KEY = 'ahjddlbsm8dv5sbu';
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+// Weather icon mapping based on numtq codes
+const getWeatherIcon = (numtq) => {
+  const iconMap = {
+    '00': 'weather-sunny',
+    '01': 'weather-partly-cloudy',
+    '02': 'weather-cloudy',
+    '03': 'weather-cloudy',
+    '04': 'weather-cloudy',
+    '05': 'weather-cloudy',
+    '06': 'weather-cloudy',
+    '07': 'weather-rainy',
+    '08': 'weather-pouring',
+    '09': 'weather-pouring',
+    '10': 'weather-lightning-rainy',
+    '11': 'weather-snowy',
+    '12': 'weather-snowy-heavy',
+    '13': 'weather-fog',
+    '14': 'weather-hail',
+    '15': 'weather-windy',
+    '16': 'weather-tornado',
+    '17': 'weather-hurricane',
+    '18': 'weather-dust',
+    '19': 'weather-fog',
+    '20': 'weather-hazy',
+    '21': 'weather-hazy',
+    '22': 'weather-hazy',
+    '23': 'weather-hazy',
+    '24': 'weather-hazy',
+    '25': 'weather-hazy',
+    '26': 'weather-hazy',
+    '27': 'weather-hazy',
+    '28': 'weather-hazy',
+    '29': 'weather-hazy',
+    '30': 'weather-hazy',
+    '31': 'weather-hazy',
+    '53': 'weather-hazy',
+  };
+  
+  return iconMap[numtq] || 'weather-cloudy';
+};
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+// Get background gradient based on weather and time
+const getBackgroundGradient = (numtq, isDay) => {
+  // Sunny day
+  if (numtq === '00' && isDay) {
+    return ['#4DA0B0', '#D39D38'];
+  }
+  // Cloudy day
+  else if (['01', '02', '03', '04', '05', '06'].includes(numtq) && isDay) {
+    return ['#757F9A', '#D7DDE8'];
+  }
+  // Rainy day
+  else if (['07', '08', '09', '10'].includes(numtq)) {
+    return ['#616161', '#9BC5C3'];
+  }
+  // Snowy day
+  else if (['11', '12'].includes(numtq)) {
+    return ['#8e9eab', '#eef2f3'];
+  }
+  // Night
+  else if (!isDay) {
+    return ['#232526', '#414345'];
+  }
+  // Default
+  else {
+    return ['#2980B9', '#6DD5FA'];
+  }
+};
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+const App = () => {
+  const [cities, setCities] = useState([]);
+  const [selectedCity, setSelectedCity] = useState({ city_id: 'CH010100', name: '北京' });
+  const [weatherData, setWeatherData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [error, setError] = useState(null);
+  
+  // Determine if it's daytime (between 6am and 6pm)
+  const isDay = () => {
+    const hours = new Date().getHours();
+    return hours >= 6 && hours < 18;
   };
 
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the recommendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
+  // Flatten city list for dropdown
+  const flattenCities = (cityData) => {
+    let flatList = [];
+    
+    if (!cityData || !cityData.length) return flatList;
+    
+    cityData.forEach(province => {
+      if (province.list && province.list.length) {
+        province.list.forEach(city => {
+          if (city.list && city.list.length) {
+            city.list.forEach(district => {
+              flatList.push(district);
+            });
+          }
+        });
+      }
+    });
+    
+    return flatList;
+  };
 
-  return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </View>
+  // Fetch city list
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const response = await fetch('http://api.yytianqi.com/citylist/id/1');
+        const data = await response.json();
+        
+        if (data && data.list) {
+          const flattenedCities = flattenCities(data.list);
+          setCities(flattenedCities);
+        }
+      } catch (err) {
+        console.error('Error fetching cities:', err);
+        setError('无法获取城市列表，请检查网络连接');
+      }
+    };
+    
+    fetchCities();
+  }, []);
+
+  // Fetch weather data when selected city changes
+  useEffect(() => {
+    if (selectedCity) {
+      fetchWeatherData(selectedCity.city_id);
+    }
+  }, [selectedCity]);
+
+  // Fetch weather data from API
+  const fetchWeatherData = async (cityId) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`http://api.yytianqi.com/forecast7d?city=${cityId}&key=${API_KEY}`);
+      const data = await response.json();
+      
+      if (data.code === 1) {
+        setWeatherData(data.data);
+      } else {
+        setError(`获取天气数据失败: ${data.msg}`);
+      }
+    } catch (err) {
+      console.error('Error fetching weather data:', err);
+      setError('无法获取天气数据，请检查网络连接');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Render city item in dropdown
+  const renderCityItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.cityItem}
+      onPress={() => {
+        setSelectedCity(item);
+        setModalVisible(false);
+      }}
+    >
+      <Text style={styles.cityName}>{item.name}</Text>
+    </TouchableOpacity>
   );
-}
+
+  // Render weather forecast item
+  const renderForecastItem = ({ item, index }) => {
+    const isToday = index === 0;
+    
+    return (
+      <View style={styles.forecastItem}>
+        <Text style={styles.forecastDay}>
+          {isToday ? '今天' : new Date(item.date).toLocaleDateString('zh-CN', { weekday: 'short' })}
+        </Text>
+        <Text style={styles.forecastDate}>{item.date.substring(5)}</Text>
+        
+        <View style={styles.forecastIconContainer}>
+          <Text style={styles.weatherText}>{item.tq1}</Text>
+        </View>
+        
+        <View style={styles.tempContainer}>
+          <Text style={styles.maxTemp}>{item.qw1}°</Text>
+          <View style={styles.tempBar} />
+          <Text style={styles.minTemp}>{item.qw2}°</Text>
+        </View>
+        
+        <Text style={styles.windText}>
+          {item.fx1} {item.fl1}
+        </Text>
+      </View>
+    );
+  };
+
+  // Main render
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {weatherData ? (
+        <View
+          colors={getBackgroundGradient(
+            weatherData.list[0].numtq1,
+            isDay()
+          )}
+          style={styles.gradientContainer}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Header with city selector */}
+            <View style={styles.header}>
+              <TouchableOpacity 
+                style={styles.citySelector}
+                onPress={() => setModalVisible(true)}
+              >
+                <Text style={styles.cityText}>{selectedCity.name}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.refreshButton}
+                onPress={() => fetchWeatherData(selectedCity.city_id)}
+              >
+              </TouchableOpacity>
+            </View>
+            
+            {/* Current weather */}
+            {weatherData.list && weatherData.list.length > 0 && (
+              <View style={styles.currentWeather}>
+                <View style={styles.currentMain}>
+
+                  <Text style={styles.currentTemp}>{weatherData.list[0].qw1}°</Text>
+                </View>
+                
+                <Text style={styles.weatherCondition}>
+                  {weatherData.list[0].tq1}
+                </Text>
+                
+                <View style={styles.currentDetails}>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailText}>
+                      {weatherData.list[0].qw2}° / {weatherData.list[0].qw1}°
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailText}>
+                      {weatherData.list[0].fx1} {weatherData.list[0].fl1}
+                    </Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.updateTime}>
+                  更新时间: {weatherData.sj.substring(0, 16)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Weather forecast */}
+            <View style={styles.forecastContainer}>
+              <Text style={styles.forecastTitle}>未来天气预报</Text>
+              <FlatList
+                data={weatherData.list}
+                renderItem={renderForecastItem}
+                keyExtractor={(item) => item.date}
+                horizontal={false}
+                scrollEnabled={false}
+              />
+            </View>
+          </ScrollView>
+          
+          {/* City selection modal */}
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={modalVisible}
+            onRequestClose={() => setModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>选择城市</Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  </TouchableOpacity>
+                </View>
+                
+                <FlatList
+                  data={cities}
+                  renderItem={renderCityItem}
+                  keyExtractor={(item) => item.city_id}
+                  style={styles.cityList}
+                />
+              </View>
+            </View>
+          </Modal>
+        </View>
+      ) : (
+        <View style={styles.loadingContainer}>
+          {loading ? (
+            <ActivityIndicator size="large" color="#0080ff" />
+          ) : error ? (
+            <View style={styles.errorContainer}>
+
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={() => fetchWeatherData(selectedCity.city_id)}
+              >
+                <Text style={styles.retryText}>重试</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      )}
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-  sectionTitle: {
+  gradientContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 30,
+  },
+  citySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cityText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginRight: 5,
+  },
+  refreshButton: {
+    padding: 8,
+  },
+  currentWeather: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  currentMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentTemp: {
+    fontSize: 80,
+    fontWeight: '200',
+    color: '#fff',
+  },
+  weatherCondition: {
     fontSize: 24,
-    fontWeight: '600',
+    color: '#fff',
+    marginTop: 10,
   },
-  sectionDescription: {
-    marginTop: 8,
+  currentDetails: {
+    flexDirection: 'row',
+    marginTop: 20,
+    width: '80%',
+    justifyContent: 'space-around',
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailText: {
+    color: '#fff',
+    marginLeft: 5,
+    fontSize: 16,
+  },
+  updateTime: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    marginTop: 20,
+  },
+  forecastContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 20,
+  },
+  forecastTitle: {
     fontSize: 18,
-    fontWeight: '400',
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 15,
   },
-  highlight: {
-    fontWeight: '700',
+  forecastItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  forecastDay: {
+    width: 40,
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  forecastDate: {
+    width: 50,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  forecastIconContainer: {
+    width: 70,
+    alignItems: 'center',
+  },
+  weatherText: {
+    color: '#fff',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  tempContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 90,
+  },
+  maxTemp: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  tempBar: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  minTemp: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+  },
+  windText: {
+    width: 80,
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'right',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    height: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  cityList: {
+    flex: 1,
+  },
+  cityItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  cityName: {
+    fontSize: 16,
+    color: '#333',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#555',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#0080ff',
+    borderRadius: 5,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
   },
 });
 
