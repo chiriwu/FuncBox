@@ -11,8 +11,10 @@ import {
   StatusBar,
   Modal,
   ScrollView,
-  Dimensions
+  Dimensions,
+  TextInput
 } from 'react-native';
+// 正确导入LinearGradient
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -20,7 +22,7 @@ const { width } = Dimensions.get('window');
 
 // API Key
 const API_KEY = 'ahjddlbsm8dv5sbu';
-
+// console.log('LinearGradient=',LinearGradient)
 // Weather icon mapping based on numtq codes
 const getWeatherIcon = (numtq) => {
   const iconMap = {
@@ -58,7 +60,7 @@ const getWeatherIcon = (numtq) => {
     '31': 'weather-hazy',
     '53': 'weather-hazy',
   };
-  
+
   return iconMap[numtq] || 'weather-cloudy';
 };
 
@@ -97,7 +99,10 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [error, setError] = useState(null);
-  
+  // 新增搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredCities, setFilteredCities] = useState([]);
+
   // Determine if it's daytime (between 6am and 6pm)
   const isDay = () => {
     const hours = new Date().getHours();
@@ -107,9 +112,9 @@ const App = () => {
   // Flatten city list for dropdown
   const flattenCities = (cityData) => {
     let flatList = [];
-    
+
     if (!cityData || !cityData.length) return flatList;
-    
+
     cityData.forEach(province => {
       if (province.list && province.list.length) {
         province.list.forEach(city => {
@@ -121,8 +126,33 @@ const App = () => {
         });
       }
     });
-    
+
     return flatList;
+  };
+
+  // 处理城市搜索
+  const handleCitySearch = (text) => {
+    setSearchQuery(text);
+    if (text.trim() === '') {
+      setFilteredCities(cities);
+    } else {
+      const filtered = cities.filter(city =>
+        city.name.toLowerCase().includes(text.toLowerCase())
+      );
+      setFilteredCities(filtered);
+    }
+  };
+
+  // 重置搜索
+  const resetSearch = () => {
+    setSearchQuery('');
+    setFilteredCities(cities);
+  };
+
+  // 打开模态框时重置搜索
+  const openCityModal = () => {
+    resetSearch();
+    setModalVisible(true);
   };
 
   // Fetch city list
@@ -131,17 +161,18 @@ const App = () => {
       try {
         const response = await fetch('http://api.yytianqi.com/citylist/id/1');
         const data = await response.json();
-        
+
         if (data && data.list) {
           const flattenedCities = flattenCities(data.list);
           setCities(flattenedCities);
+          setFilteredCities(flattenedCities); // 初始化过滤后的城市列表
         }
       } catch (err) {
         console.error('Error fetching cities:', err);
         setError('无法获取城市列表，请检查网络连接');
       }
     };
-    
+
     fetchCities();
   }, []);
 
@@ -156,11 +187,11 @@ const App = () => {
   const fetchWeatherData = async (cityId) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`http://api.yytianqi.com/forecast7d?city=${cityId}&key=${API_KEY}`);
       const data = await response.json();
-      
+
       if (data.code === 1) {
         setWeatherData(data.data);
       } else {
@@ -190,24 +221,29 @@ const App = () => {
   // Render weather forecast item
   const renderForecastItem = ({ item, index }) => {
     const isToday = index === 0;
-    
+
     return (
       <View style={styles.forecastItem}>
         <Text style={styles.forecastDay}>
           {isToday ? '今天' : new Date(item.date).toLocaleDateString('zh-CN', { weekday: 'short' })}
         </Text>
         <Text style={styles.forecastDate}>{item.date.substring(5)}</Text>
-        
+
         <View style={styles.forecastIconContainer}>
+          <MaterialCommunityIcons
+            name={getWeatherIcon(item.numtq1)}
+            size={28}
+            color="#fff"
+          />
           <Text style={styles.weatherText}>{item.tq1}</Text>
         </View>
-        
+
         <View style={styles.tempContainer}>
           <Text style={styles.maxTemp}>{item.qw1}°</Text>
           <View style={styles.tempBar} />
           <Text style={styles.minTemp}>{item.qw2}°</Text>
         </View>
-        
+
         <Text style={styles.windText}>
           {item.fx1} {item.fl1}
         </Text>
@@ -219,9 +255,9 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       {weatherData ? (
-        <View
+        <LinearGradient
           colors={getBackgroundGradient(
             weatherData.list[0].numtq1,
             isDay()
@@ -231,52 +267,60 @@ const App = () => {
           <ScrollView contentContainerStyle={styles.scrollContent}>
             {/* Header with city selector */}
             <View style={styles.header}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.citySelector}
-                onPress={() => setModalVisible(true)}
+                onPress={openCityModal}
               >
                 <Text style={styles.cityText}>{selectedCity.name}</Text>
+                <Ionicons name="chevron-down" size={20} color="#fff" />
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.refreshButton}
                 onPress={() => fetchWeatherData(selectedCity.city_id)}
               >
+                <Feather name="refresh-cw" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
-            
+
             {/* Current weather */}
             {weatherData.list && weatherData.list.length > 0 && (
               <View style={styles.currentWeather}>
                 <View style={styles.currentMain}>
-
+                  <MaterialCommunityIcons
+                    name={getWeatherIcon(weatherData.list[0].numtq1)}
+                    size={80}
+                    color="#fff"
+                  />
                   <Text style={styles.currentTemp}>{weatherData.list[0].qw1}°</Text>
                 </View>
-                
+
                 <Text style={styles.weatherCondition}>
                   {weatherData.list[0].tq1}
                 </Text>
-                
+
                 <View style={styles.currentDetails}>
                   <View style={styles.detailItem}>
+                    <Feather name="thermometer" size={16} color="#fff" />
                     <Text style={styles.detailText}>
                       {weatherData.list[0].qw2}° / {weatherData.list[0].qw1}°
                     </Text>
                   </View>
-                  
+
                   <View style={styles.detailItem}>
+                    <Feather name="wind" size={16} color="#fff" />
                     <Text style={styles.detailText}>
                       {weatherData.list[0].fx1} {weatherData.list[0].fl1}
                     </Text>
                   </View>
                 </View>
-                
+
                 <Text style={styles.updateTime}>
                   更新时间: {weatherData.sj.substring(0, 16)}
                 </Text>
               </View>
             )}
-            
+
             {/* Weather forecast */}
             <View style={styles.forecastContainer}>
               <Text style={styles.forecastTitle}>未来天气预报</Text>
@@ -289,8 +333,8 @@ const App = () => {
               />
             </View>
           </ScrollView>
-          
-          {/* City selection modal */}
+
+          {/* City selection modal with search */}
           <Modal
             animationType="slide"
             transparent={true}
@@ -302,28 +346,71 @@ const App = () => {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>选择城市</Text>
                   <TouchableOpacity onPress={() => setModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#333" />
                   </TouchableOpacity>
                 </View>
-                
-                <FlatList
-                  data={cities}
-                  renderItem={renderCityItem}
-                  keyExtractor={(item) => item.city_id}
-                  style={styles.cityList}
-                />
+
+                {/* 搜索框 */}
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchInputContainer}>
+                    <Feather name="search" size={18} color="#999" style={styles.searchIcon} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="搜索城市..."
+                      placeholderTextColor="#999"
+                      value={searchQuery}
+                      onChangeText={handleCitySearch}
+                      clearButtonMode="while-editing"
+                    />
+                    {searchQuery.length > 0 && (
+                      <TouchableOpacity onPress={resetSearch} style={styles.clearButton}>
+                        <Ionicons name="close-circle" size={18} color="#999" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                {/* 城市列表 */}
+                {filteredCities.length > 0 ? (
+                  <FlatList
+                    data={filteredCities}
+                    renderItem={renderCityItem}
+                    keyExtractor={(item) => item.city_id}
+                    style={styles.cityList}
+                    keyboardShouldPersistTaps="handled"
+                    ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>没有找到匹配的城市</Text>
+                      </View>
+                    }
+                  />
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>没有找到匹配的城市</Text>
+                  </View>
+                )}
+
+                {/* 搜索结果统计 */}
+                {filteredCities.length > 0 && (
+                  <View style={styles.resultCountContainer}>
+                    <Text style={styles.resultCountText}>
+                      找到 {filteredCities.length} 个城市
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </Modal>
-        </View>
+        </LinearGradient>
       ) : (
         <View style={styles.loadingContainer}>
           {loading ? (
             <ActivityIndicator size="large" color="#0080ff" />
           ) : error ? (
             <View style={styles.errorContainer}>
-
+              <Feather name="alert-circle" size={50} color="#ff6b6b" />
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.retryButton}
                 onPress={() => fetchWeatherData(selectedCity.city_id)}
               >
@@ -497,6 +584,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  // 搜索相关样式
+  searchContainer: {
+    marginBottom: 15,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    color: '#333',
+  },
+  clearButton: {
+    padding: 4,
+  },
   cityList: {
     flex: 1,
   },
@@ -508,6 +619,27 @@ const styles = StyleSheet.create({
   cityName: {
     fontSize: 16,
     color: '#333',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+  },
+  resultCountContainer: {
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  resultCountText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
