@@ -8,15 +8,14 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "build-android": "cd android && gradlew clean &&  gradlew assembleRelease "
+    "build-android": "cd android && ./gradlew clean &&  ./gradlew assembleRelease "
   },
   "dependencies": {
-    "@expo/vector-icons": "^14.1.0",
-    "expo": "^53.0.8",
-    "expo-linear-gradient": "^14.1.4",
-    "expo-status-bar": "^2.2.3",
+    "@react-native-async-storage/async-storage": "^2.1.2",
     "react": "19.0.0",
-    "react-native": "0.79.1"
+    "react-native": "0.79.1",
+    "react-native-linear-gradient": "^2.8.3",
+    "react-native-vector-icons": "^10.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
